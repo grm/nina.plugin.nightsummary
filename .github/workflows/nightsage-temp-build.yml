@@ -31,6 +31,15 @@ jobs:
           tar -xzf nightsage-src.tar.gz -C _nightsage
           Get-ChildItem _nightsage\NightSage
 
+      - name: Apply build-only compatibility patch
+        shell: pwsh
+        run: |
+          $p = "_nightsage\NightSage\NINA.Plugin.NightSage\ViewModels\NightSageDockable.cs"
+          $s = Get-Content $p -Raw
+          $s = $s.Replace("using NINA.Equipment.Interfaces.Mediator;", "using NINA.Equipment.Interfaces.Mediator;`r`nusing NINA.Equipment.Interfaces.ViewModel;")
+          $s = $s.Replace("using NINA.WPF.Base.Interfaces.ViewModel;`r`n", "")
+          Set-Content $p $s -NoNewline
+
       - name: Restore
         shell: pwsh
         run: dotnet restore "_nightsage\NightSage\NINA.Plugin.NightSage.sln"
