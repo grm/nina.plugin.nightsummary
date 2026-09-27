@@ -34,11 +34,26 @@ jobs:
       - name: Apply build-only compatibility patch
         shell: pwsh
         run: |
-          $p = "_nightsage\NightSage\NINA.Plugin.NightSage\ViewModels\NightSageDockable.cs"
-          $s = Get-Content $p -Raw
+          $dock = "_nightsage\NightSage\NINA.Plugin.NightSage\ViewModels\NightSageDockable.cs"
+          $s = Get-Content $dock -Raw
           $s = $s.Replace("using NINA.Equipment.Interfaces.Mediator;", "using NINA.Equipment.Interfaces.Mediator;`r`nusing NINA.Equipment.Interfaces.ViewModel;")
           $s = $s.Replace("using NINA.WPF.Base.Interfaces.ViewModel;`r`n", "")
-          Set-Content $p $s -NoNewline
+          $s = $s.Replace("new RelayCommand(async () => await AnalyzeTargetAsync())", "new RelayCommand(async _ => await AnalyzeTargetAsync())")
+          $s = $s.Replace("new RelayCommand(async () => await DiscoverAsync())", "new RelayCommand(async _ => await DiscoverAsync())")
+          $s = $s.Replace("new RelayCommand(async () => await PlanSelectedAsync())", "new RelayCommand(async _ => await PlanSelectedAsync())")
+          $s = $s.Replace("new RelayCommand(() => CreateCurrentPlan())", "new RelayCommand(_ => CreateCurrentPlan())")
+          $s = $s.Replace("new RelayCommand(() => RefreshSetup())", "new RelayCommand(_ => RefreshSetup())")
+          Set-Content $dock $s -NoNewline
+
+          $plugin = "_nightsage\NightSage\NINA.Plugin.NightSage\NightSagePlugin.cs"
+          $s = Get-Content $plugin -Raw
+          $s = $s.Replace("new RelayCommand(async () => await TestProviderAsync())", "new RelayCommand(async _ => await TestProviderAsync())")
+          Set-Content $plugin $s -NoNewline
+
+          $ts = "_nightsage\NightSage\NINA.Plugin.NightSage\Services\TargetScheduler\TargetSchedulerAdapter.cs"
+          $s = Get-Content $ts -Raw
+          $s = $s.Replace("        WithContext(context => {`r`n            var projects", "        WithContext<object?>(context => {`r`n            var projects")
+          Set-Content $ts $s -NoNewline
 
       - name: Restore
         shell: pwsh
