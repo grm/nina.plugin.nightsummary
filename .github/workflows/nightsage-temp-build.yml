@@ -1,0 +1,63 @@
+name: NightSage temporary build
+
+on:
+  push:
+    branches: [nightsage-build-temp]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Reconstruct source archive
+        shell: pwsh
+        run: |
+          $parts = Get-ChildItem "_nightsage_parts\part*.b64" | Sort-Object Name
+          if ($parts.Count -ne 4) { throw "Expected 4 source chunks, got $($parts.Count)" }
+          $b64 = ($parts | ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+          [IO.File]::WriteAllBytes('nightsage-src.tar.gz', [Convert]::FromBase64String($b64))
+          New-Item -ItemType Directory -Force -Path _nightsage | Out-Null
+          tar -xzf nightsage-src.tar.gz -C _nightsage
+          Get-ChildItem _nightsage\NightSage
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore "_nightsage\NightSage\NINA.Plugin.NightSage.sln"
+
+      - name: Test
+        shell: pwsh
+        run: dotnet test "_nightsage\NightSage\NINA.Plugin.NightSage.Tests\NINA.Plugin.NightSage.Tests.csproj" -c Release --no-restore --logger "console;verbosity=normal"
+
+      - name: Build plugin
+        shell: pwsh
+        run: dotnet build "_nightsage\NightSage\NINA.Plugin.NightSage\NINA.Plugin.NightSage.csproj" -c Release --no-restore
+
+      - name: Stage alpha release
+        shell: pwsh
+        run: |
+          $out = "_nightsage\NightSage\NINA.Plugin.NightSage\bin\Release\net8.0-windows7.0"
+          $stage = "_release\NightSage"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item "$out\NINA.Plugin.NightSage.dll" $stage
+          if (Test-Path "$out\System.Security.Cryptography.ProtectedData.dll") { Copy-Item "$out\System.Security.Cryptography.ProtectedData.dll" $stage }
+          Copy-Item "_nightsage\NightSage\README.md" $stage
+          Copy-Item "_nightsage\NightSage\CHANGELOG.md" $stage
+          Copy-Item "_nightsage\NightSage\LICENSE.txt" $stage
+
+      - name: Upload alpha artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NightSage-v0.1.0-alpha.1
+          path: _release/NightSage
+          if-no-files-found: error
